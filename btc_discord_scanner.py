@@ -17,22 +17,34 @@ ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
-# Debug check to ensure secrets are loaded from GitHub repository settings
 if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
     raise ValueError("❌ CRITICAL ERROR: Alpaca API Key or Secret Key is missing from GitHub Secrets!")
 
 binance_client = Client(tld='us') 
-
-# Explicit keyword arguments required by modern alpaca-py SDK
 trading_client = TradingClient(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY, paper=True)
 
 TICKER = "BTCUSDT"
 ALPACA_SYMBOL = "BTC/USD"
-RISK_PCT = 0.01 # 1.0% Risk per trade (Maven / 5%ers Prop Firm Target)
+RISK_PCT = 0.01 # 1.0% Risk per trade 
 
 # ==========================================
-# 2. DISCORD ALERT MODULE
+# 2. DISCORD ALERT MODULES
 # ==========================================
+def ping_discord_startup():
+    payload = {
+        "username": "V6 AMT Sniper",
+        "embeds": [{
+            "title": "🟢 V6 Matrix Engine Online",
+            "description": "Cloud runner spun up successfully. Scanning BTCUSD 1m order flow for 70% Value Area sweeps...",
+            "color": 3066993, 
+            "footer": {"text": "Bot is active for the next 6 hours."}
+        }]
+    }
+    try:
+        requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Failed to ping Discord startup: {e}")
+
 def send_discord_alert(action, price, balance, sl, tp, be, vah, val):
     color = 65280 if action == "BUY" else 16711680
     risk_amount = balance * RISK_PCT
@@ -65,7 +77,6 @@ def fast_amt_scan(closes, highs, lows, volumes, cvds, atrs, vol_mas, emas_1440):
     c_low = lows[-1]
     c_atr = atrs[-1]
 
-    # 1. 8-Hour Volume Profile & 70% Value Area
     window_closes = closes[-480:]
     window_vols = volumes[-480:]
     min_c = np.min(window_closes)
@@ -97,23 +108,19 @@ def fast_amt_scan(closes, highs, lows, volumes, cvds, atrs, vol_mas, emas_1440):
     vah = min_c + (upper_idx * bin_size) + (bin_size / 2.0)
     val = min_c + (lower_idx * bin_size) + (bin_size / 2.0)
 
-    # 2. Failed Auction (20-bar structure swept)
     lowest_20 = np.min(lows[-20:-1])
     highest_20 = np.max(highs[-20:-1])
     
     failed_auction_low = (lowest_20 < val) and (c_low <= lowest_20) and (c_close > val)
     failed_auction_high = (highest_20 > vah) and (c_high >= highest_20) and (c_close < vah)
 
-    # 3. Macro Trend & Volume Spike Filters
     trend_bull = c_close > emas_1440[-1]
     trend_bear = c_close < emas_1440[-1]
     vol_ok = volumes[-1] > (1.5 * vol_mas[-2])
 
-    # 4. CVD Divergence
     cvd_bull_div = cvds[-1] > cvds[-2]
     cvd_bear_div = cvds[-1] < cvds[-2]
 
-    # 5. Return formatted signal
     if failed_auction_low and cvd_bull_div and vol_ok and trend_bull:
         return 1, c_close, c_close - (c_atr*2), c_close + (c_atr*4), c_close + (c_atr*2), vah, val
     elif failed_auction_high and cvd_bear_div and vol_ok and trend_bear:
@@ -160,6 +167,10 @@ def generate_signals():
 # ==========================================
 if __name__ == "__main__":
     print("V6 AMT Sniper Session Initiated...")
+    
+    # 🟢 Send startup ping to Discord
+    ping_discord_startup()
+    
     end_time = time.time() + (5.9 * 3600) 
     
     while time.time() < end_time:

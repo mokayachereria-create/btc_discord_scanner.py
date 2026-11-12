@@ -11,14 +11,20 @@ from alpaca.trading.requests import MarketOrderRequest, TakeProfitRequest, StopL
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
 
 # ==========================================
-# 1. CONFIGURATION & SECRETS
+# 1. CONFIGURATION & SECRETS CHECK
 # ==========================================
 ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
+# Debug check to ensure secrets are loaded from GitHub repository settings
+if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
+    raise ValueError("❌ CRITICAL ERROR: Alpaca API Key or Secret Key is missing from GitHub Secrets!")
+
 binance_client = Client(tld='us') 
-trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
+
+# Explicit keyword arguments required by modern alpaca-py SDK
+trading_client = TradingClient(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY, paper=True)
 
 TICKER = "BTCUSDT"
 ALPACA_SYMBOL = "BTC/USD"
